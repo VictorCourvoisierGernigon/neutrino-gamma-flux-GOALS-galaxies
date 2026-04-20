@@ -48,7 +48,7 @@ def Qp(p, R, h, plow, pup, alpha, pmax, RSN):
 
     # Momentum integration for normalization
     mom = np.logspace(np.log10(plow), np.log10(pup), 100000)
-    Int = np.trapz(I(mom, alpha, pmax), mom)
+    Int = np.trapezoid(I(mom, alpha, pmax), mom)
     N = E_CR(RSN) / Int                    # Normalization constant
 
     return (N / V_SBN) * (p / mp)**(-alpha) * np.exp(-p / pmax)
@@ -85,7 +85,7 @@ def larmor(p, B):
 def W_0_trapz(k_0, d):
     integral = lambda k: k**(-d)
     logaxis = np.logspace(0, 10, 100000)
-    I = np.trapz(integral(logaxis), logaxis)
+    I = np.trapezoid(integral(logaxis), logaxis)
     return (k_0**d * I)**-1
 
 # Turbulence spectrum function F(k)
@@ -172,7 +172,7 @@ def q(E_nu, R, v, nism, H, gammasn, pmax, RSN):
     p = np.sqrt((E_nu / x)**2 - 0.938**2)
     integrand = Ftot(x, E_nu / x) * cross_section(E_nu / x) * 1e-27 * (1 / x) * \
                 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
-    I = np.trapz(integrand, x)
+    I = np.trapezoid(integrand, x)
     return c * nism * I  # Units: GeV-1 cm-3 s-2
 
 q = np.vectorize(q)
