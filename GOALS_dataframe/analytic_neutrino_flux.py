@@ -162,6 +162,21 @@ def Ftot(x, Ep):
 Ftot = np.vectorize(Ftot)
 
 # ===============================
+#     GAMMA DISTRIBUTION
+# ===============================
+
+def F_gamma(x,Ep) :
+    L = np.log(Ep / 1e3)
+    Bgamma = 1.30 + 0.14*L + 0.011*L**2
+    betagamma = 1 / (1.79 + 0.11*L + 0.008*L**2)
+    kgamma = 1 / (0.801 + 0.049*L + 0.014*L**2)
+    first = (np.log(x) / x)
+    second = ( (1 - x**betagamma) / ( 1 + kgamma * x**betagamma * (1 - x**betagamma)))**4
+    third = ( 1/np.log(x) ) - \
+            ((4 * betagamma * x**betagamma) / (1 - x**betagamma)) - \
+            ((4 * kgamma * betagamma * x**betagamma * (1 - 2 * x**betagamma)) / (1 + kgamma * x**betagamma * (1 - x**betagamma)))
+    return Bgamma * first * second * third
+# ===============================
 #         SOURCE FUNCTION q
 # ===============================
 
