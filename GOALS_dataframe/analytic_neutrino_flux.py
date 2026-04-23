@@ -141,7 +141,7 @@ def Fmu1(x, Ep):
     else:
         return 0
 
-Fmu1_vec = np.vectorize(Fmu1)
+Fmu1 = np.vectorize(Fmu1)
 
 # Electron neutrino distribution
 def Fe(x, Ep):
@@ -165,7 +165,7 @@ Ftot = np.vectorize(Ftot)
 #     GAMMA DISTRIBUTION
 # ===============================
 
-def F_gamma(x,Ep) :
+def Fgamma(x,Ep):
     L = np.log(Ep / 1e3)
     Bgamma = 1.30 + 0.14*L + 0.011*L**2
     betagamma = 1 / (1.79 + 0.11*L + 0.008*L**2)
@@ -175,7 +175,11 @@ def F_gamma(x,Ep) :
     third = ( 1/np.log(x) ) - \
             ((4 * betagamma * x**betagamma) / (1 - x**betagamma)) - \
             ((4 * kgamma * betagamma * x**betagamma * (1 - 2 * x**betagamma)) / (1 + kgamma * x**betagamma * (1 - x**betagamma)))
+    
     return Bgamma * first * second * third
+Fgamma = np.vectorize(Fgamma)
+
+
 # ===============================
 #         SOURCE FUNCTION q
 # ===============================
@@ -189,9 +193,9 @@ def q(E_nu, R, v, nism, H, gammasn, pmax, RSN):
                 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
     I = np.trapezoid(integrand, x)
     return c * nism * I  # Units: GeV-1 cm-3 s-2
-
 q = np.vectorize(q)
 
+#
 # ===============================
 #     OBSERVED NEUTRINO FLUX
 # ===============================
