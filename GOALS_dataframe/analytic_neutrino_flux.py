@@ -195,11 +195,20 @@ def q(E_nu, R, v, nism, H, gammasn, pmax, RSN):
     return c * nism * I  # Units: GeV-1 cm-3 s-2
 q = np.vectorize(q)
 
-#
+# Gamma source function q(γ)
+def q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN):
+    x = np.logspace(-4, 0, 1000)
+    c = 3e10  # Speed of light in cm s-1
+    p = np.sqrt((E_gamma / x)**2 - 0.938**2)
+    integrand = Fgamma(x, E_gamma / x) * cross_section(E_gamma / x) * 1e-27 * (1 / x) * \
+                4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+    I = np.trapezoid(integrand, x)
+    return c * nism * I  # Units: GeV-1 cm-3 s-2
 # ===============================
-#     OBSERVED NEUTRINO FLUX
+#        OBSERVED FLUX
 # ===============================
 
+# Neutrino
 # Energy-squared scaled neutrino flux at Earth
 def Flux(E_nu, R, v, nism, H, gammasn, pmax, RSN, D_L):
     DL_cm = (D_L * 1e6 * u.pc).to(u.cm).value
@@ -214,4 +223,22 @@ def Flux(E_nu, R, v, nism, H, gammasn, pmax, RSN, D_L):
     # Factor 1/3 accounts for neutrino oscillation into 3 flavors
     scaled_flux = (1 / 3) * (V / (4 * np.pi * DL_cm**2)) * E_nu**2 * \
                   q(E_nu, R, v, nism, H, gammasn, pmax, RSN)
+    return scaled_flux
+
+#Gamma
+# Energy-squared scaled gamma flux at Earth
+def Flux_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN, D_L):
+    E_cut= 330.0 #GeV #Due to EGB
+    DL_cm = (D_L * 1e6 * u.pc).to(u.cm).value
+    R_cm = (R * u.pc).to(u.cm).value
+    H_cm = (H * u.pc).to(u.cm).value
+
+    if H == 0:
+        V = (4 / 3) * np.pi * R_cm**3
+    else:
+        V = 2 * np.pi * R_cm**2 * H_cm
+
+    scaled_flux =   (V / (4 * np.pi * DL_cm**2)) * E_gamma**2 * \
+                  q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN) * \
+                  np.exp(-E_gamma/E_cut)   #Due to EGB
     return scaled_flux
