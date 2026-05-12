@@ -9,7 +9,14 @@ from astropy import constants as const
 
 #Scipy imports
 from scipy.integrate import quad
-
+#Gammapy imports
+from gammapy.modeling.models import (
+    EBL_DATA_BUILTIN,
+    EBLAbsorptionNormSpectralModel,
+    Models,
+    PowerLawSpectralModel,
+    SkyModel,
+)
 # ===============================
 #         INJECTION SECTION
 # ===============================
@@ -102,16 +109,17 @@ def D(E, k_0, B, d):
     return D_pc2_s
 
 # Diffusion time (quasi-linear theory, in seconds)
-def tau_diff_quasi(p, R):
-    return R**2 / D(p, 1, 250, 5 / 3)  # B = 250 μG
+def tau_diff_quasi(p, h):                           ####### attention, ça dépend de h pas de R    
+    return h**2 / D(p, 1, 250, 5 / 3)  # B = 250 μG
 
 # Total CR lifetime including all loss processes
 def tau_lifetime(R, vwind, p, nism, h):
     return 1 / (
         1 / tau_wind(R, vwind, h) +
         1 / loss_time(p, nism) +
-        1 / tau_diff_quasi(p, R)
+        1 / tau_diff_quasi(p, h)
     )
+
 
 # ===============================
 #     MOMENTUM DISTRIBUTION
@@ -170,13 +178,16 @@ def Fgamma(x,Ep):
     Bgamma = 1.30 + 0.14*L + 0.011*L**2
     betagamma = 1 / (1.79 + 0.11*L + 0.008*L**2)
     kgamma = 1 / (0.801 + 0.049*L + 0.014*L**2)
-    first = (np.log(x) / x)
-    second = ( (1 - x**betagamma) / ( 1 + kgamma * x**betagamma * (1 - x**betagamma)))**4
-    third = ( 1/np.log(x) ) - \
-            ((4 * betagamma * x**betagamma) / (1 - x**betagamma)) - \
-            ((4 * kgamma * betagamma * x**betagamma * (1 - 2 * x**betagamma)) / (1 + kgamma * x**betagamma * (1 - x**betagamma)))
-    
-    return Bgamma * first * second * third
+    if x==1 :
+        return 0
+    else :
+        first = (np.log(x) / x)
+        second = ( (1 - x**betagamma) / ( 1 + kgamma * x**betagamma * (1 - x**betagamma)))**4
+        third = ( 1/np.log(x) ) - \
+                ((4 * betagamma * x**betagamma) / (1 - x**betagamma)) - \
+                ((4 * kgamma * betagamma * x**betagamma * (1 - 2 * x**betagamma)) / (1 + kgamma * x**betagamma * (1 - x**betagamma)))
+        
+        return Bgamma * first * second * third
 Fgamma = np.vectorize(Fgamma)
 
 
@@ -191,19 +202,39 @@ def q(E_nu, R, v, nism, H, gammasn, pmax, RSN):
     p = np.sqrt((E_nu / x)**2 - 0.938**2)
     integrand = Ftot(x, E_nu / x) * cross_section(E_nu / x) * 1e-27 * (1 / x) * \
                 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+    
     I = np.trapezoid(integrand, x)
+    
     return c * nism * I  # Units: GeV-1 cm-3 s-2
 q = np.vectorize(q)
 
 # Gamma source function q(γ)
 def q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN):
     x = np.logspace(-4, 0, 1000)
+    x=x[x<E_gamma/0.938]
     c = 3e10  # Speed of light in cm s-1
-    p = np.sqrt((E_gamma / x)**2 - 0.938**2)
-    integrand = Fgamma(x, E_gamma / x) * cross_section(E_gamma / x) * 1e-27 * (1 / x) * \
-                4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
-    I = np.trapezoid(integrand, x)
-    return c * nism * I  # Units: GeV-1 cm-3 s-2
+        ##p=np.array([])
+
+    
+    if E_gamma>=8.5 :
+        p = np.sqrt((E_gamma / x)**2 - 0.938**2)
+        integrand = Fgamma(x, E_gamma / x) * cross_section(E_gamma / x) * 1e-27 * (1 / x) * \
+                    4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+        I = np.trapezoid(integrand, x)
+
+        return c * nism * I  # Units: GeV-1 cm-3 s-2
+    else : 
+        K_pi = 0.17
+        Emin= E_gamma +  0.135**2 / (4*E_gamma)
+        Emax=1e20
+        E_pi=np.logspace(np.log10(Emin),np.log10(Emax),1000)
+        p = np.sqrt( (0.938+E_pi/K_pi)**2 - 0.938**2)
+        q_pi = c * nism / K_pi * cross_section(0.938 + E_pi/K_pi) * 1e-27 * 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+        integrand = q_pi / np.sqrt(E_pi**2-0.135**2)
+        I = np.trapezoid(integrand,E_pi)
+        return 2 * I
+q_gamma = np.vectorize(q_gamma)
+
 # ===============================
 #        OBSERVED FLUX
 # ===============================
@@ -225,10 +256,23 @@ def Flux(E_nu, R, v, nism, H, gammasn, pmax, RSN, D_L):
                   q(E_nu, R, v, nism, H, gammasn, pmax, RSN)
     return scaled_flux
 
+
 #Gamma
+#Abpsorption factor
+
+def tau_gammagamma_star (E_gamma): #273 appendix C
+    first = ( ((E_gamma / 1e3)**(-2.7) / 2.1)  +  ((E_gamma / 1e3)**(-0.31) / 0.34 ) ) ** (-1)
+    second = ( ((E_gamma / 12e3)**(-3.1) / 0.47 ) + ((E_gamma / 40e3 )**(-0.8) / 20) ) ** (-1)
+    third = 7 * (E_gamma / 100e3)**7.8
+    return 95/1100 * (first + second + third)
+
+def tau_gammagamma (E_gamma, z) :
+    return tau_gammagamma_star(E_gamma) * (z/0.003)
+
+
 # Energy-squared scaled gamma flux at Earth
 def Flux_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN, D_L):
-    E_cut= 330.0 #GeV #Due to EGB
+    #without egb correction
     DL_cm = (D_L * 1e6 * u.pc).to(u.cm).value
     R_cm = (R * u.pc).to(u.cm).value
     H_cm = (H * u.pc).to(u.cm).value
@@ -239,6 +283,6 @@ def Flux_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN, D_L):
         V = 2 * np.pi * R_cm**2 * H_cm
 
     scaled_flux =   (V / (4 * np.pi * DL_cm**2)) * E_gamma**2 * \
-                  q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN) * \
-                  np.exp(-E_gamma/E_cut)   #Due to EGB
+                  q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN) 
+                     
     return scaled_flux
