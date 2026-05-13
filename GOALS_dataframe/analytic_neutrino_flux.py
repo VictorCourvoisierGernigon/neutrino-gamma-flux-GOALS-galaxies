@@ -210,26 +210,48 @@ q = np.vectorize(q)
 
 # Gamma source function q(γ)
 def q_gamma(E_gamma, R, v, nism, H, gammasn, pmax, RSN):
+    cut=8.5 #Between Delta approx and no
+    E_cut=8.45390034 #Lower Energy of the Energy Array
+
     x = np.logspace(-4, 0, 1000)
     x=x[x<E_gamma/0.938]
-    c = 3e10  # Speed of light in cm s-1
-        ##p=np.array([])
+    c = 3e10
 
-    
-    if E_gamma>=8.5 :
+    if E_gamma>=cut :
         p = np.sqrt((E_gamma / x)**2 - 0.938**2)
         integrand = Fgamma(x, E_gamma / x) * cross_section(E_gamma / x) * 1e-27 * (1 / x) * \
                     4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
         I = np.trapezoid(integrand, x)
-
         return c * nism * I  # Units: GeV-1 cm-3 s-2
-    else : 
+    
+    else :
+        x_cut = np.logspace(-4, 0, 1000)
+        x_cut=x_cut[x_cut<E_cut/0.938]
+        ################################################
+        p = np.sqrt((E_cut / x_cut)**2 - 0.938**2)
+        integrand = Fgamma(x_cut, E_cut / x_cut) * cross_section(E_cut / x_cut) * 1e-27 * (1 / x_cut) * \
+                        4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+        I = np.trapezoid(integrand, x_cut)
+        b =  c * nism * I
+        #######
+        K_pi = 0.17
+        Emin= E_cut +  0.135**2 / (4*E_cut)
+        Emax=1e20
+        E_pi=np.logspace(np.log10(Emin),np.log10(Emax),1000)
+        p = np.sqrt( (0.938+E_pi/K_pi)**2 - 0.938**2)
+        q_pi = c * nism / K_pi * cross_section(0.938 + E_pi/K_pi) * 1e-27 * 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+        integrand = q_pi / np.sqrt(E_pi**2-0.135**2)
+        I = np.trapezoid(integrand,E_pi)
+        a = 2 * I
+        ###########################################################    
+        n_tilde=b/a
+        
         K_pi = 0.17
         Emin= E_gamma +  0.135**2 / (4*E_gamma)
         Emax=1e20
         E_pi=np.logspace(np.log10(Emin),np.log10(Emax),1000)
         p = np.sqrt( (0.938+E_pi/K_pi)**2 - 0.938**2)
-        q_pi = c * nism / K_pi * cross_section(0.938 + E_pi/K_pi) * 1e-27 * 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
+        q_pi = n_tilde * c * nism / K_pi * cross_section(0.938 + E_pi/K_pi) * 1e-27 * 4 * np.pi * p**2 * f_p(p, R, v, nism, H, 0.1, 1e9, gammasn, pmax, RSN)
         integrand = q_pi / np.sqrt(E_pi**2-0.135**2)
         I = np.trapezoid(integrand,E_pi)
         return 2 * I
